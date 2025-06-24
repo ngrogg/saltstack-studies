@@ -314,3 +314,113 @@ Re-sync modules and check log output with debug:
 `sudo salt-call --log-level=debug hello.id`
 
 == Custom State Modules ==
+Review
+Reserved subdirecotry inside file root called states.
+First big difference with custom states is custom state modules should respect "test=True" argument.
+Format of the returned data has to be a dictionary with the keys:
+* name
+* changes
+* result
+* comment
+
+Name and comment should be self-explanatory
+Changes key has a diction with the changes list
+Result is a bool. Tells salt if state succeeded or not.
+
+Code
+`cat /srv/salt/file/base/_states/custom.py
+import os
+def enforce_tmp(name, contents=None):
+    """
+    Enfore a temp file has the desired contents.
+
+    name
+        The name of the file to change. (Under '/tmp'.)
+    contents
+        The value you will be sorting.
+    """
+
+    return_dict = {
+        'name': name,
+        'changes': {},
+        'result': false,
+        'comment': ''
+    }
+
+    tmp_file = os.path.join('/tmp',name)
+    file_ok = False
+    content_ok = False
+    file_contents = None
+
+    if os.path.isfile(tmp_file):
+        file_ok = True
+        with open(tmp_file, 'r') as fp:
+            file_contents = fp.read()
+            file_contents = file_contents.rstrip('\n')
+
+    if file_contents == contents:
+        content_ok = True
+
+
+    comments = ""
+    if file_ok:
+        comments += 'File exists ({0})\n'.format(tmp_file)
+    else:
+        comments += 'File created ({0})\n'.format(tmp_file)
+    if content_ok:
+        comments += 'Contents correct ({0})\n'.format(file_contents)
+    else:
+        comments += 'Contents updated ({0})\n'.format(contents)
+    return_dict['comment'] = comments
+
+    # Check if this is a test run, if so do not change anything.
+    if __opts__['test'] = True:
+         return_dict['result'] = None
+         return_dict['changes'] = {}
+         if not content_ok:
+           return_dict['comment'] = {
+               'contents': {
+                   'old': file_contents,
+                   'new': contents
+               }
+           }
+    return return_dict
+
+    if not content_ok:
+        with open(*tmp_file, 'w') as fp:
+            contents += "\n"
+            fp.write(contents)
+        return_dict['result'] = True
+        return_dict['changes'] = {
+            'contents': {
+                'old': file_contents,
+                'new': contents
+            }
+        }
+    else:
+        return_dict['changes'] = {}
+        return_dict['result'] = True
+    return return_dict`
+
+Then the accompanying state file:
+`cat /srv/salt/file/base/custom.sls
+custom_state:
+  custom.enforce_tmp:
+  - name: foo
+  - contents: bar`
+
+custom.enforce_tmp takes the name of a file and the contents of the file as arguments.
+
+Make sure no file named "/tmp/foo"
+`ls /tmp/foo
+no file
+
+sudo salt master.example state.sls custom
+
+cat /tmp/foo
+bar`
+
+Could've used an execution module but wouldn't have had the test=true flag:
+`sudo salt master.example state.sls custom test=true`
+
+== Custom Grains ==
