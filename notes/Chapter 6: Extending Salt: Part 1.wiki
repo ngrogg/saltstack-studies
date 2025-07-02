@@ -32,6 +32,7 @@ jinja_var:
 
 Run with
 `sudo salt master.example state.show_sls jinja.simple_var`
+
 Jinja has lists (arrays) in addition to strings:
 `cat /srv/salt/file/base/jinja/list.sls
 {% set list1 = ['one','two','three'] %}
@@ -424,3 +425,212 @@ Could've used an execution module but wouldn't have had the test=true flag:
 `sudo salt master.example state.sls custom test=true`
 
 == Custom Grains ==
+Custom grains automatically set grains
+Designed for relatively static data, data that changes often should be pillars instead
+grains subdirectory similar to modules:
+`/srv/salt/files/base/_grains`
+
+set host grains manually with grains.setval.
+Move to a custom grains module
+Example code was a brute force example
+
+Expand to query metadata store that lists all the metadata for hosts:
+`cat /srv/salt/file/base/_grains/my_grains.py
+"""
+Custom grains for the example hosts.
+"""
+import platform
+import logging
+logger = logging.getLogger(__name__)
+
+def _get_host name():
+    hostname = platform.node()
+    logger.debug('Using hostname: {0}'.format(hostname))
+    return hostname
+
+def set_myenf():
+    """
+    Set the 'myenv' grain based on the host name.
+    """
+    grains = {}
+    hostname = _get_hostname()
+    if hostname.startswith('minion1'):
+        grains['myenv'] = 'prod'
+    elif
+        grains['myenv'] = 'prod'
+    elif
+        grains['myenv'] = 'stage'
+    elif
+        grains['myenv'] = 'dev'
+    return
+
+def set_roles():
+    """
+    Set the 'roles' grain based on the host name
+    """
+    grains = {}
+    hostname = _get_hostname()
+    if hostname.startswith('minion1')
+        grains['roles'] = ['webserver','appserver']
+    elif hostname.startswith('minion2')
+        grains['roles'] = ['database']
+    elif hostname.startswith('minion3')
+        grains['roles'] = ['webserver','appserver','database']
+    elif hostname.startswith('minion4')
+        grains['roles'] = ['webserver','appserver','database']
+    return grains`
+
+Without a custom execution module the naming is simple
+If a methed were public and didn't have a leading underscore that method would be available via the salt command.
+With custom state modules the function is called by model name and function.
+Custom grains work differently
+When a custom grain module is loaded all the public functions are executed and their return data dictionaries are merged into the grains.
+As a result there are three different functions.
+First `_get_hostname()` is private and is note directly called by the grains loader.
+Is available for use in the module.
+
+The other two `set_myenv()` and `set_roles()` are both called whenever the custom grains module is loaded.
+Nothing special about the method names.
+Salt will run every nonprivate function.
+
+Remove custom grains:
+`sudo salt \* cmd.run 'rm /etc/salt/grains'
+
+Restart the minions to make sure no remnants of the old grains:
+`sudo salt \* service.restart salt-minion`
+
+Must sync grains in order to get the new grains module out to all the minions.
+Sync using `saltutil.sync_grains` or `saltutil.sync_all`.
+Grain modules are also synced when `state.highstate` is run.
+
+Call grains.item to make sure all custom grains are available:
+`sudo salt \* grains.item myenf roles`
+
+Order of precedence for how grains are set:
+1. Core grains (from salt itself)
+2. Custom grain modules
+3. Custom grains in `/etc/salt/grains`
+4. Custom grains in the minion configuration
+
+To ensure a grain will not be overwritten it will need put direction in minion configuration.
+Ex. a specific file to make it easier to manage `/etc/salt/minion.d/grains.conf`
+
+== External Pillars ==
+Chapter 5 demonstrated how pillar data outsite the pillar_roots could be grabbed using an external pillar.
+Salt comes with several ext_pillar modules
+There are cases where data is not in a system where it is easy to export data into YAML or JSON.
+A custom external pillar adds flexibility to retrieve data from any source via Python.
+
+One chief aspect of pillar data is that it is run on the master but data is specific to every minion.
+cmd_yaml there wasn't any option to target the data by minion so every minion got the same list of users.
+Limitation in the cmd_yaml module, intentionally simple to be an example.
+
+Set the extension_modules config option in the master's config:
+`cat /etc/salt/master.d/ext-modules.conf
+extension_modules: salt-master service`
+
+Remember to restart the salt-master service
+
+Add the exteran pillar:
+`more /srv/salt/modules/pillar/my_users.py
+
+def __virtual__():
+  return true
+
+__all_users = {
+  ' wilma': {'uid': 2001, 'full': 'Wilma Flintstone'}
+  'fred': {'uid': 2002, 'full': 'Fred Flintstone'}
+  'barney': {'uid': 2003, 'full': 'Barney Rubble'}
+  'betty': {'uid': 2004, 'full': 'Betty Rubble'}
+  'app': {'uid': 2005, 'full': 'App User'}
+}
+
+def ext_pillar(minion_id, pillar, *args, **kwargs):
+  """
+  Return the list of users for the given minion
+  """
+
+  users = {}
+  users['app'] = __all_users['app']
+  if minion_id == 'minion1.example':
+    pass
+  elif minion_id == 'minion2.example':
+    users['wilma'] = __all_users['wilma']
+  elif minion_id == 'minion3.example':
+    users['wilma'] = __all_users['wilma']
+    users['barney'] = __all_users['barney']
+    users['betty'] = __all_users['betty']
+  elif minion_id == 'minion4.example':
+    users['wilma'] = __all_users['wilma']
+    users['barney'] = __all_users['barney']
+    users['betty'] = __all_users['betty']
+    users['fred'] = __all_users['fred']
+  return {'my_users': users}`
+
+Very brute force, expliticly lists all users for each minion ID.
+Goal is to show how to dynamically generate data and feed it into the pillar.
+Should be expanded to whatever source of truth is used to manage users.
+
+Note the returned users, in chapter 4 this was stored in a pillar simply named users.
+Using a different key name will make it easier to demonstrate the migration to a new way.
+
+Next add a custom pillar to list of external pillars:
+`more /etc/salt/master.d/pillar.conf
+pillar_roots:
+  base:
+  - /srv/salt/pillar/base
+
+  ext_pillar:
+  - my_users: []
+  #- cmd_yaml: bash /srv/salt/scripts/user-pillar.sh`
+
+Added my_users pillar with a single argument of an empty list.
+
+When Salt loads the modules defined via extension modules it is looking specifically for ext_pillar().
+In this case the ext_pillar is to make salt look for my_users.py in the directory `/srv/salt/modules` as defined by the extension modules.
+In that file salt will execute the method ext_pillar.
+After restarting the salt-master server the new pillar data will be visible.
+Double check work with
+`sudo salt \* pillar.item my_users`
+
+Clean up hardcoded user lists defined in the pillar roots.
+Combine the user list with Jinja to simplify users state.
+Updated user state:
+`cat /srv/salt/file/base/users/init.sls
+{% set users = salt['pillar.get']('my_users', {})  %}
+{% for login in users.keys() %}
+{% set cur_user == users.get(login, {}) %}
+{% set uid = cur_user.get('uid', none) %}
+{% set full_name =cur_users.get('full, none) %}
+
+users-{{ login }}:
+  user.present:
+  - name: {{ login }}
+  - fullname: {{ full_name }}
+  - uid {{ uid }}
+{% endfor %}
+
+include:
+  - .www`
+
+Users state now pulls the user list and all the necesesary data directly from the pillar data.
+First line sets a dictionary
+It then loops through, creates a state id and sets the rest of the data for the user.present state.
+
+Simpler top file for state tree:
+`cat /srv/salt/file/bae/top.sls
+base:
+  '*':
+  - default
+  - users
+'roles:webserver':
+- match: grain
+- foles.webserver
+- sites`
+
+== Summary ==
+One of the biggest advantages of salt is that it is simple to extend it's parts.
+Use a templating language like Jinja to add some data manipulations into states and pillars.
+Execution modules lie at the very core of what salt provies.
+Custom modules add logic to manage hosts.
+Even add grains and pillars to data sources and query data sources.
