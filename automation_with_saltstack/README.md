@@ -14,4 +14,4 @@ ISBN: 978-8197651274
 
 Cover:
 
-![Book cover](./images/automation_with_saltstack.jpg)
+![Book cover](./images/automation-with-saltstack.jpg)
