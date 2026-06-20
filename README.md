@@ -1,24 +1,8 @@
-# Salt Essentials Notes
+# Saltstack Studies
 
 ## Overview
-Reading notes from the book "Salt Essentials" by Craig Sebenik and Thomas Hatch. <br>
+Notes and studies from my saltstack review.
 
-### Note
-I highly recommend configuring your vim instance to use vimwiki before reading these notes <br>
-
-I use this Vim plugin manager:
-[vim-plug](https://github.com/junegunn/vim-plug)
-
-Here is the guide for installing vimwiki:
-[vimwiki](https://github.com/vimwiki/vimwiki#installation)
-
-For an example, here's my vimrc:
-[My Vimrc](https://github.com/ngrogg/dotfiles/blob/main/.vimrc)
-
-## Book information
-Name: Salt Essentials <br>
-Author: Craig Sebenik, Thomas Hatch <br>
-Publisher: O'reilly Media <br>
-ISBN: 978-1491900635 <br>
-Cover: <br>
-![Book cover](./images/cover.jpg)
+## Notes
+* **salt_essentials**, Notes and review from the book "Salt Essentials" by Craig Sebenik and Thomas Hatch.
+* **automation_with_saltstack**, Notes and review from the book "Automation with Saltstack" by Yogesh Raheja.
