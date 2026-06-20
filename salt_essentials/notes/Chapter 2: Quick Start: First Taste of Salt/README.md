@@ -1,65 +1,82 @@
-[[index|back]]
+# Chapter 2: Quick Start: First Taste of Salt
 
-= Chapter 2: Quick Start: First taste of Salt =
-== Single-Master Setup ==
+## Single-Master Setup
 Most straightforward approach.
+
 Minions attached to a single master.
+
 Minion and master share code.
+
 Core libararies needed on all hosts.
+
 CLI utilies work best on the master like `salt-run` and `salt`.
+
 Not harmful to have master utilies on minions but can cause confusion.
 
-=== From Packages ===
+### From Packages
 Assumes RPM distro, should be similar on DEB based distro.
+
 May need to install EPEL on RPM based distro.
 
-Install base salt and minion on every host:
+Install base salt and minion on every host: <br>
 `dnf install -y salt salt-minion`
 
-Install salt-master on master host:
+Install salt-master on master host: <br>
 `dnf install -y salt-master`
 
-=== Bootstrap Script ===
+### Bootstrap Script
 There is a bootstrap script https://bootstrap.saltstack.com
+
 Redirects to
+
 https://github.com/saltstack/salt-bootstrap/releases/latest/download/bootstrap-salt.sh
 
 Or
+
 https://github.com/saltstack/salt-bootstrap/releases/latest/download/bootstrap-salt.ps1
 
 Designed for other UNIX-like systems.
+
 Easy to use but not particularly secure.
 
-== Starting Up ==
-Two main daemons:
-* `/usr/bin/salt-minion`
-* `/usr/bin/salt-master`
+## Starting Up
+Two main daemons: <br>
+* `/usr/bin/salt-minion` <br>
+* `/usr/bin/salt-master` <br>
 
 Default setting is a host named simply "salt".
+
 Basic minion configuration located at `/etc/salt/minion`.
+
 YAML-format.
 
 Configure each minion with a DNS or IP address of salt master.
+
 Defaults typically included as comments.
 
-Once hosts are configured start the salt-master and salt-minion services:
-`sudo service salt-master start`
-`sudo service salt-minion start`
+Once hosts are configured start the salt-master and salt-minion services: <br>
+`sudo service salt-master start` <br>
+`sudo service salt-minion start` <br>
 
-=== How a minion ID is computed ===
+### How a Minion ID is Computed
 Created based on hostname.
+
 Can be Fully Qualified Domain Name (FQDN).
+
 When minion starts if ID is not set it will try the following:
 * Python function socket.getfqdn()
 * /etc/hostname
 * /etc/hosts
 
 At that point Salt will take the first publicly routable address.
+
 Important that every minion have a unique ID.
+
 ID will be cached in `/etc/salt/minion_id`
+
 If hostname is changed cache file will not automatically update.
 
-To change the hostname do the following:
+To change the hostname do the following: <br>
 * Updated the hostname
 * Stop the salt-minion daemon
 * Delete the cache file
@@ -67,81 +84,98 @@ To change the hostname do the following:
 
 That should generated a new cache file
 
-=== Firewall notes ===
+### Firewall Notes
 Minions talk to master on ports `4505` and `4506`.
+
 Pub-Sub channels.
+
 Publish port is 4505
+
 Return port is 4506
 
-== Basic Commands ==
-Main commands:
+## Basic Commands
+Main commands: <br>
 * `/usr/bin/salt`
 * `/usr/bin/salt-key`
 * `/usr/bin/salt-run`
 * `/usr/bin/salt-call`
 
-=== salt: The Main Workhorse ===
+### salt: The Main Workhorse
 Run a single command on many hosts
+
 Format for command is `salt target command`.
 
-Example:
+Example: <br>
 `sudo salt minion1.example test.ping`
 
 Runs execution module `test.ping` on minion `minion1.example`.
 
 Salt comes with execution modules.
+
 List here https://docs.saltproject.io/en/latest/ref/modules/all/index.html
 
 Chapter 6 covers writing your own modules
 
-=== salt-key: Key Management ===
+### salt-key: Key Management
 Used to establish initial trust relationship
+
 Master keeps a record of all minions and state of trust.
+
 Three states: Accepted, Unaccepted and Rejected.
 
 Manage states using `salt.key` command.
 
-List minions:
+List minions: <br>
 `sudo salt-key`
 
-List minions by unaccepted:
+List minions by unaccepted: <br>
 `sudo salt-key --list=unaccepted`
 
-Accept with flag:
+Accept with flag: <br>
 `sudo salt-key --accept=master.example --yes`
 
-Will prompt, otherwise use accept all argument:
+Will prompt, otherwise use accept all argument: <br>
 `sudo salt-key --accept-all`
 
 Check that minions are accepted by re-running `sudo salt-key`.
 
 For extra security add the `master_finger` option.
+
 Allows setting the encryption key in the minion.
+
 Find with `salt-key -f master.pub`.
 
-=== salt-call: Execution on the Minion ===
+### salt-call: Execution on the Minion
 Remote Exeuction modules run on minion.
+
 Run command directly by using the salt-call command.
+
 Only works on local host, i.e. run on server itself.
+
 When salt-call is run it will attempt to communicate with the master.
-If you want to avoid this use the local flag when running command:
+
+If you want to avoid this use the local flag when running command: <br>
 `sudo salt-call --local test.ping`
 
 Useful for debugging and "masterless minions" as covered in Chapter 9.
 
-=== salt-run: Coordination of Jobs on the Master ===
+### salt-run: Coordination of Jobs on the Master
 Salt command runs all at once, salt-run runs in order.
+
 Master only.
+
 Doesn't take target set of minions.
+
 Used for coordinating commands across a pre-determined set of hosts.
 
-Example:
+Example: <br>
 `sudo salt-run manage.up`
+
 Uses test.ping and returns what hosts return true.
 
 Note that an execution module is a collection of execution functions.
 
-=== Summary of Commands ===
+### Summary of Commands
 Four basic commands:
 * `salt`
 * `salt-key`
@@ -151,59 +185,65 @@ Four basic commands:
 3/4 are run on master, `salt-call` is run on the minion.
 
 Salt is the main command, takes a minion target and execution function to call.
+
 Execution modeule runs on the minion itself, not the master.
+
 Important if you need third-party library installed.
 
 Salt-key handles keys on the master.
 
-Salt-run is useful for coordinating commands among many minions. Runs only on the master and reaches out to minions.
+Salt-run is useful for coordinating commands among many minions.
+
+Runs only on the master and reaches out to minions.
 
 Salt-call is for running a command only on a minion.
 
-== Key Management ==
+## Key Management
 All communication between minions and master are encrypted.
+
 First step in establishing communication is exchanging keys.
+
 Swap public keys.
 
 Keys are minion IDs and must be unique.
 
-List accepted keys with salt-key:
+List accepted keys with salt-key: <br>
 `sudo salt-key --list=acc`
 
-Salt-key can also provide the fingerprint of each key file:
+Salt-key can also provide the fingerprint of each key file: <br>
 `sudo salt-key --finger master.example`
 
 There is also a --finger-all command which will list the fingerprint of all keys in all states.
 
 When there are issues with key exchange, fingerprints will help id which key is which.
 
-=== Accepting Keys ===
-To put keys back into unaccepted state delete all the keys:
+### Accepting Keys
+To put keys back into unaccepted state delete all the keys: <br>
 `sudo salt-key --delete-all`
 
 Minions need to be restarted, including on the master.
 
 Confirm unaccpeted keys with `salt-key`
 
-To accept via globbing:
+To accept via globbing: <br>
 `sudo salt-key --accept=master\*`
 
-Note to use the wildcard * you need to escape it in salt \*.
+Note to use the wildcard `*` you need to escape it in salt `\*`.
 
-=== Rejecting Keys ===
-Reject keys for minions:
+### Rejecting Keys
+Reject keys for minions: <br>
 `sudo salt-key --reject='minion1*'`
 
 Listed keys with `salt-key` will show rejected key.
 
 By default Salt will only accept unaccepted keys with the `sudo salt-key --accept-all` command.
 
-To included rejected keys you'll need to include the `--include-all` flag:
+To included rejected keys you'll need to include the `--include-all` flag: <br>
 `sudo salt-key --include-all --accept-all`
 
 Same logic for rejecting keys, accepted keys won't be included.
 
-=== Key Files ===
+### Key Files
 Default locations:
 * `/etc/salt/pki/master`
 * `/etc/salt/pki/minion`
@@ -216,42 +256,45 @@ Minion keys sorted based on status:
 * `/etc/salt/pki/master/minions_rejected` Rejected minions
 
 minion public keys are stored in files by their minion ID.
+
 Likely won't have to adjust directly, use `salt-key`.
 
-== Minion Targeting ==
-how to selectively target minions
+## Minion Targeting
+How to selectively target minions
 
-=== Minion ID ===
-Simplest is just to give it a minion ID:
+### Minion ID
+Simplest is just to give it a minion ID: <br>
 `salt minion1.example test.ping`
 
-=== List -L ===
-Comma separated list of minion IDs:
+### List -L
+Comma separated list of minion IDs: <br>
 `sudo salt -L master.example,minion1.example test.ping`
 
-=== Glob ===
-Shell-style globs can include a list of minions:
+### Glob
+Shell-style globs can include a list of minions: <br>
 `sudo salt '*' test.ping`
 
-Can included Minion ID:
+Can included Minion ID: <br>
 `sudo salt 'min*' test.ping`
 
-=== Regular Expression -E ===
-Use regex for more elaborate matching:
+### Regular Expression -E
+Use regex for more elaborate matching: <br>
 `sudo salt -E 'minion(1|2)\.example' test.ping`
 
-=== Grains -G ===
+### Grands -G
 Minions gather info about OS and present to user as grains.
+
 Data structures that allow you to target some aspect of the system.
 
-To sort by OS:
-`sudo salt -G 'os:Ubuntu' test.ping`
-`sudo salt -G 'os:CentOS' test.ping`
+To sort by OS: <br>
+`sudo salt -G 'os:Ubuntu' test.ping` <br>
+`sudo salt -G 'os:CentOS' test.ping` <br>
 
-=== Compound -C ===
-Match by several parameters:
+### Compound -C
+Match by several parameters: <br>
 `sudo salt -C 'master* or G@os:Ubuntu' test.ping`
 
-=== Targeting Summary ===
+### Targeting Summary
 Can target by IP or via node groups as well.
+
 Node groups are a list of minions defined in the master's configuration file.

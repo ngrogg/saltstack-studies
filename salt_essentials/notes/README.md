@@ -1,0 +1,8 @@
+# Salt Essentials: Notes
+
+## Chapter 1: Introduction
+## Chapter 2: Quick Start: First taste of Salt
+## Chapter 3: Execution Modules: The functional foundation
+## Chapter 4: Configuration Management: Salt States
+## Chapter 5: Minion Data Master Data
+## Chapter 6: Extending Salt: Part 1
