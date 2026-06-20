@@ -281,7 +281,7 @@ Can included Minion ID: <br>
 Use regex for more elaborate matching: <br>
 `sudo salt -E 'minion(1|2)\.example' test.ping`
 
-### Grands -G
+### Grains -G
 Minions gather info about OS and present to user as grains.
 
 Data structures that allow you to target some aspect of the system.
