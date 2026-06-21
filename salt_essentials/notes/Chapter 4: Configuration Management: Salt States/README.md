@@ -1,1 +1,501 @@
 # Chapter 4: Configuration Management: Salt States
+Salt provies a simple file format that specifies a "recipe" or "state" of how host should be configured.
+
+## State File Overview
+Described via Salt State (SLS) files.
+
+Most basic format is YAML.
+
+Language agnostic.
+
+Standard data structure constructs:
+* Strings
+* Numbers
+* Arrays (lists)
+* Hashes (dictionaries)
+
+File format can be altered by using a different renderer
+
+### SLS Example: Adding a User
+Simple SLS file to add a user:
+`user_wilma:` <br>
+`  user.present:` <br>
+`    - name: wilma` <br>
+`    - fullname: Wilma Flintstone` <br>
+`    - uid: 2001` <br>
+`    - home: /home/wilma` <br>
+
+State modules call user and function present
+
+Add user with user.add execution function.
+
+Check that user exists with the user.present state function.
+
+State can run over and over again, will only make a change if there is a delta between actual and desired state.
+
+State calls are idempotent
+
+idempotent
+
+adjective
+
+(computing) Describing an action which, when performed multiple times, has no further effect on its subject after the first time it is performed.
+
+#### SLS format and state documentation
+Standard YAML file
+
+First line is an ID that can be referenced in other state files or later in the file.
+
+Next is a state declaration
+
+Remember exection and state functions are not the same.
+
+Use sys.state_doc to look at documentation for a given module: <br>
+`sudo salt-call sys.state_doc user.present`
+
+First argument `name` can be used as the ID of the state itself.
+
+Rewrite wilma example from earlier:
+`wilma:` <br>
+`  user.present:` <br>
+`  - fullname: Wilma Flintstone` <br>
+`  - uid: 2001` <br>
+`  - home: /home/wilma` <br>
+
+Helps simplify states but can be awkward if called in other files.
+
+Can be an issue with packages names.
+
+Be aware of shortcoming when usings.
+
+#### Setting the file roots
+Tell the Salt master where to find the files.
+
+In salt terms, set up the file server.
+
+Master config file at `/etc/salt/master`.
+
+Easier to create subdirectory `/etc/salt/master.d` and save smaller configs there.
+
+`sudo grep default_include /etc/salt/master` <br>
+`#default_include: master.d/*.conf` <br>
+
+One of many default configs.
+
+Example is file-roots: <br>
+`sudo cat /etc/salt/master.d/file-roots.conf` <br>
+`file_roots:` <br>
+`  base:` <br>
+`  - /srv/salt/file/base` <br>
+
+Adjust as needed and restart salt-master: `sudo systemctl restart salt-master`
+
+Store files that need synced from master to minion there.
+
+Salt has a built in file server that uses ZeroMQ channel to securly transfer files.
+
+Salt can created overlapping groups called "environments".
+
+#### Executing a state file
+`Add wilma user file to file_roots directory:` <br>
+`cat /srv/salt/file/based/user-wilma.sls` <br>
+`user_wilma:` <br>
+`  user.present:` <br>
+`  - name: wilma` <br>
+`  - fullname: Wilma Flintstone` <br>
+`  - uid: 2001` <br>
+`  - home: /home/wilma` <br>
+
+Many state modules such as pkg and user.
+
+Many execution modules such as cmd and sys.
+
+In order to run a state an excuetion module called state is used.
+
+This is how state modules are run but state itself is not a state module.
+
+Use sys.doc to see state's capabilities: <br>
+`sudo salt master.example state.show_sls user-wilma`
+
+Shows data structure salt uses after reading the file.
+
+New output "present" is given at the bottom.
+
+Modules (user) and specific function (prsent) are joined in the original file but pulled apart by Salt when parsing.
+
+Use stat.show_sls to debug salt states.
+
+Will catch YAML syntax errors
+
+Run state against minion2 with state.sls: <br>
+`sudo salt minion2.example state.sls user-wilma`
+
+Can be run repeatedly without causing problems.
+
+Later on will be used in "highstate", a collection of states that all together form a definition of a host.
+
+### Working with the Multilayered State System
+Salt builds on top of itself
+
+Multiple layers for flexibility
+
+#### state.single: Calling a state using data on the command line
+Bottommost layer is function calls temselves
+
+Similar to execution modules but distinct
+
+Call state functions directly by using the `state.single` execution module: <br>
+`sudo salt minion2.example state.single user.present name=wilma fullname'Wilma Flintstone' uid=2001 home=/home/wilma`
+
+Call to `state.single` says to execute the `user.present` function as specified in the state file.
+
+Useful for testing state function.
+
+Returned data is exactly the same as when using the SLS file: <br>
+`sudo salt minion2.example state.sls user-wilma`
+
+#### state.low: States with raw data
+Next layer called "the low chunk"
+
+State complete abstracted as data
+
+State function `user.present` is a combination of two pieces joined.
+
+Low chuck shows how state `user` and function `present` are two different parts of the data structure.
+
+View data for an existing SLS file by useing `state.show_low_sls`
+
+When low chunk is called different parts of data structure are visible: <br>
+`sudo salt minion2.example state.low '{state: user, fun: present, name: wilma}'`
+
+Shouldn't need to go that deep into states but this can be useful when debugging.
+
+## Highstate and the Top File
+So far used one file and called it directly with `state.sls`.
+
+Want a reipe to add a new host, annote it (i.e. label it as a web/database server), have packages set up and users created etc.
+
+Need to combine states and know which states to run on which machine.
+
+### The Top File
+Come states into more complex highstates.
+
+File used to define that is called the top file and is usualy named `top.sls`
+
+Appears in the `file_roots` directory.
+
+Very simple top file to create user 'wilma' from earlier: <br>
+`cat /srv/salt/file/base/top.sls` <br>
+`base:` <br>
+`  'minion2.example':` <br>
+`  - user-wilma` <br>
+
+At the highest level in the top file is the environment.
+
+Next is the targeted minion `minion2.example`.
+
+Followed by the state `user-wilma`.
+
+View the effective top file for any minion using the `state.show_top` command: <br>
+`sudo salt minion2.example state.show_top`
+
+Output shows how top file would be generated for that minion.
+
+If a top file doesn't exist nothing is returned.
+
+To install vim on every host use the `pkg.installed` state function.
+
+Put file into a subdirectory for structure in layout.
+
+Since package will be installed on every host call the directory `default` and the file `packages.sls`: <br>
+`cat /srv/salt/file/base/default/packages.sls` <br>
+`packages_vim:` <br>
+`  pkg.installed:` <br>
+`  - name: vim` <br>
+
+Add to every host in modified top file: <br>
+`cat /srv/salt/file/base/top.sls` <br>
+`base:` <br>
+`  '*':` <br>
+`    - default.packages` <br>
+`  'minion2.example':` <br>
+`    - user-wilma` <br>
+
+Directories are not denoted with slahses but with dots.
+
+So a state directory of `a/b/c/d` would be given the name `a.b.c.d` in the top_file.
+
+Highstate exceution references the top file, no need to specify arguments.
+
+Target given in the top file will create a unique run on every minion.
+Currently defined state fails due to vim package name.
+Ubuntu (DEB) works, CentOS (RPM) does not.
+
+Break up all hosts target, us grains to configure by package name: <br>
+`cat /srv/salt/file/base/top.sls` <br>
+`base:` <br>
+`  'os:CentOS':` <br>
+`    - match: grain` <br>
+`    - default. vim-enhanced` <br>
+`  'os:Ubuntu':` <br>
+`    - match: grain` <br>
+`    - default.vim` <br>
+`  'minion2.example':` <br>
+`    - user-wilma` <br>
+
+Create two new salt state files `vim.sls` and `vim-enhanced.sls`.
+
+May need to remove old `packages.sls`.
+
+Content of files: <br>
+`cat /srv/salt/file/base/default/vim.sls` <br>
+`packages_vim:` <br>
+`  pkg.installed:` <br>
+`  - name: vim` <br>
+` ` <br>
+`cat /srv/salt/file/base/default/vim-enhanced.sls` <br>
+`packages_vim:` <br>
+`  pkg.installed:` <br>
+`  - name: vim-enhanced` <br>
+
+Rerunning `state.highstate` should work without issues.
+
+Back to adding users.
+
+Add the rest of the users to their correct servers: <br>
+`cat /srv/salt/file/base/top.sls` <br>
+`base:` <br>
+`  'os:CentOS':` <br>
+`    - match: grain` <br>
+`    - default. vim-enhanced` <br>
+` ` <br>
+`  'os:Ubuntu':` <br>
+`    - match: grain` <br>
+`    - default.vim` <br>
+` ` <br>
+`  'minion2.example':` <br>
+`    - user.dba` <br>
+` ` <br>
+`  'minion3.example':` <br>
+`    - users.dba` <br>
+`    - users.qa` <br>
+` ` <br>
+`  'minion4.example':` <br>
+`    - users.all` <br>
+
+Create state files for users to add: <br>
+`cat /srv/salt/file/base/users/{wilma,fred,barney,betty}.sls` <br>
+`user_wilma:` <br>
+`  user.present:` <br>
+`  - name: wilma` <br>
+`  - fullname: Wilma Flintstone` <br>
+`  - uid: 2001` <br>
+`user_fred:` <br>
+`  user.present:` <br>
+`  - name: fred` <br>
+`  - fullename: Fred Flintstone` <br>
+`  - uid: 2002` <br>
+`user:barney:` <br>
+`  user.present:` <br>
+`  - name: barney` <br>
+`  - fullename: Barney Rubble` <br>
+`  - uid: 2003` <br>
+`user:betty:` <br>
+`  user.present:` <br>
+`  - name: betty` <br>
+`  - fullename: Betty Rubble` <br>
+`  - uid: 2004` <br>
+
+Next, groups users with their own states: <br>
+`cat /srv/salt/file/base/users/dba.sls` <br>
+`include:` <br>
+`- users.wilma` <br>
+`cat /srv/salt/file/base/users/qa.sls` <br>
+`include:` <br>
+`- users.barney` <br>
+`- users.betty` <br>
+
+Remember all files are referenced from a file root.
+
+Refer to state files in currenctly directory with a leading dot.
+
+Example: <br>
+`cat /srv/salt/file/base/users/all.sls` <br>
+`include:` <br>
+`- .fred` <br>
+`- .wilma` <br>
+`- .barney` <br>
+`- .betty` <br>
+
+A more complex top file can user `state.show_top` for a specific minion to make sure it looks as expected: <br>
+`sudo salt minion3.example state.show_top`
+
+Run a highstate against all the minions to create users and install packages: <br>
+`sudo salt '*' state.highstate`
+
+When running individual states, use `state.show_sls` to show the lower-level state data structure.
+
+Analogous command for highstates is `state.show_highstate`: <br>
+`sudo salt minion4.example state.show_highstate`
+
+## State Ordering
+When compiling states for highstate states will always be ordered and repeatable.
+
+Order that salt generates may not be desired.
+
+Use `require` declaration to force a specific state to be executed before a given state.
+
+Watch another state and then execute based on changes.
+
+Peer into future with `prereq` which will look at other states to see if they will change.
+
+Run referencing state based on change.
+
+### require: Depend on Another State
+Enforce that named state executes before the current state.
+
+If state A has a `require` for state B, state B will always run before state A.
+
+Revisit Nginx install statement.
+
+Add more structure to file_roots with a roles and web server directory: <br>
+`cat /srv/salt/file/base/roles/webserver/packages.sls` <br>
+`roles_webserver_packages:` <br>
+`  pkg.installed:` <br>
+`  - name: nginx` <br>
+
+Also need to make sure nginx is running: <br>
+`cat /srv/salt/file/base/roles/webserver/start.sls` <br>
+`roles_webserver_start:` <br>
+`  service.running:` <br>
+`  - name: nginx` <br>
+`  - require:` <br>
+`    - pkg: nginx` <br>
+
+Before starting nginx, make sure nginx actually exists.
+
+Declaration takes a list of dictionaries.
+
+Key is the name of the state module, in this case pkg, and then the value of the dictionary is the name of the state.
+
+In this context it is the state's name (nginx), not the ID (roles_webserver_packages).
+
+Could add to `minion1.example` target, or use shortcut `init.sls`.
+
+#### init.sls directory shortcut
+Reference a directory instead of a file.
+
+If there is a file named `init.sls` you can simply reference the directory.
+
+Using web server example. Added `webserver/roles/init.sls` and reference it in the top file: <br>
+`cat /srv/salt/file/base/roles/webserver/init.sls` <br>
+`include:` <br>
+`- users.www` <br>
+`- .packages` <br>
+`- .start` <br>
+`cat /srv/salt/file/base/top.sls` <br>
+`...` <br>
+`minion1.exmple:` <br>
+`  -roles.webserver` <br>
+
+File `roles/webserver/init.sls` makes use of the leading dot shorthand to reference files within the current directory.
+
+Include state, `users/www.sls`: <br>
+`cat /srv/salt/file/base/users/www.sls` <br>
+`user_www:` <br>
+`  user.present:` <br>
+`  - name: www` <br>
+`  - fullname: WebServer User` <br>
+`  - uid: 5001` <br>
+
+Can include an file into another state.
+
+Just reference based off the main file root.
+
+Run highstate on minion1: <br>
+`sudo sale minion1\* state.highstate`
+
+Makes additional changes.
+
+### watch: Run based on Other Changes
+Often when a new version of an application is deployed it needs restarted to pick up the new configs.
+
+Each statement will execute additionals states if any change is detected.
+
+Create a new state with fake site: `sites`: <br>
+`cat /srv/salt/file/base/sites/init.sls` <br>
+`sites_first:` <br>
+`  file.managed:` <br>
+`  - name: /usr/share/nginx/html/first.html` <br>
+`  - source: salt://sites/src/first.html` <br>
+`  - user: www` <br>
+`  - mode: 0644` <br>
+`  service.running:` <br>
+`  - name: nginx` <br>
+`  - watch:` <br>
+`    - file: /sr/share/nginx/html/first.html` <br>
+
+And the single file to manage: <br>
+`cat /srv/salt/file/base/sites/src/first.html` <br>
+`<html>` <br>
+`<head><title>First Site</title></head>` <br>
+`<body>` <br>
+`<h3>First Site</h3>` <br>
+`</body></html>` <br>
+
+Add new state to top file so given host will hve it applied on highstate: <br>
+`cat /srv/salt/file/base/top.sls` <br>
+`base:` <br>
+`...` <br>
+`  'minion1.example':` <br>
+`    - roles.webserver` <br>
+`    - sites` <br>
+
+Execute highstate to make change.
+
+Use `test=true` to test states
+
+Add argument of `test=true` to various states functions such as state.sls and state.highstate.
+
+Test new sites state: <br>
+`sudo salt minion1.example state.sls sites test=true`
+
+Running a highstate with the same flag: <br>
+`sudo salt minion1.example state.highstate test=true`
+
+Re-run without test flag to make actual changes on host: <br>
+`sudo salt minion1.example state.highstate`
+
+Do a simple test to verify the site is working: <br>
+`curl 172.31.0.21/first.html`
+
+Nginx should be restarted and the service should be running.
+
+### Odds and Ends
+Two more states to be aware of: `order` and `failhard`.
+
+Salt uses order attribute for bookkeeping of the states.
+
+Some useful options.
+
+To enforce that a state runs first add `order: 1` to state.
+
+Salt will add to top of the list
+
+Alternatively, try `order: last`.
+
+Note that other options are preferred to using `order`.
+
+Last bit is `failhard`.
+
+Add `failhard: true` to any state.
+
+If state fails to run then the entire state (highstate included) will stop.
+
+Useful if a service required for infrastructure must work.
+
+If there is a problem deploying service will stop immediately.
+
+Be aware if using `test=true` not to run it with `cmd.run` as it will run the command.
+
+Use as a last resort.
